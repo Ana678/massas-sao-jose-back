@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: massas_db
+    environment:
+      POSTGRES_DB: massas_sao_jose
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  postgres_test:
+    image: postgres:17
+    container_name: massas_db_test
+    environment:
+      POSTGRES_DB: massas_sao_jose_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+
+volumes:
+  postgres_data:
