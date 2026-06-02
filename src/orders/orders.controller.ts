@@ -27,7 +27,7 @@ export class OrdersController {
 
 	@Post()
 	create(@Body() createOrderDto: CreateOrderDto, @Request() req: any) {
-		return this.ordersService.create(createOrderDto, req.user.id);
+		return this.ordersService.create(createOrderDto, req.user.sub);
 	}
 
 	@Get()
@@ -70,6 +70,6 @@ export class OrdersController {
 
 	@Post("confirm-delivery")
 	confirmDelivery(@Body() dto: ConfirmDeliveryDto, @Request() req: any) {
-		return this.ordersService.confirmDelivery(dto, req.user.id);
+		return this.ordersService.confirmDelivery(dto, req.user.sub);
 	}
 }

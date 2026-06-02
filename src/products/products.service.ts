@@ -28,7 +28,8 @@ export class ProductsService {
 		return this.db
 			.select()
 			.from(schema.products)
-			.where(isNull(schema.products.deletedAt));
+			.where(isNull(schema.products.deletedAt))
+			.orderBy(schema.products.name);
 	}
 
 	async findOne(id: string) {
