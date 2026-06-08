@@ -25,6 +25,10 @@ class OrderProductDto {
 	@IsPositive({ message: "A quantidade deve ser maior que zero." })
 	@IsNotEmpty({ message: "A quantidade é obrigatória." })
 	quantity: number;
+
+	@IsNumber({}, { message: "O desconto deve ser um número." })
+	@IsOptional()
+	discount?: number;
 }
 
 export class CreateOrderDto {

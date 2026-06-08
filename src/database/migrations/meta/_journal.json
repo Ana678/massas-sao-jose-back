@@ -43,6 +43,13 @@
       "when": 1780094504822,
       "tag": "0005_square_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780692479062,
+      "tag": "0006_productive_greymalkin",
+      "breakpoints": true
     }
   ]
 }

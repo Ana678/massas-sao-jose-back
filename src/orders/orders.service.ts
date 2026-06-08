@@ -95,6 +95,7 @@ export class OrdersService {
 							productId: product.productId,
 							quantity: String(product.quantity),
 							unitPrice: String(selectedProduct.price),
+							discount: String(product.discount || 0),
 						};
 					}),
 				)
@@ -220,6 +221,7 @@ export class OrdersService {
 							productId: product.productId,
 							quantity: String(product.quantity),
 							unitPrice: String(selectedProduct!.price),
+							discount: String(product.discount || 0),
 						};
 					}),
 				);
@@ -323,6 +325,7 @@ export class OrdersService {
 				productName: schema.products.name,
 				quantity: schema.order_products.quantity,
 				unitPrice: schema.order_products.unitPrice,
+				discount: schema.order_products.discount,
 			})
 			.from(schema.orders)
 			.leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
@@ -354,6 +357,7 @@ export class OrdersService {
 					name: string | null;
 					price: string | null;
 					quantity: string | null;
+					discount: string | null;
 				}>;
 				total: number;
 			}
@@ -385,13 +389,19 @@ export class OrdersService {
 					name: row.productName,
 					price: row.unitPrice,
 					quantity: row.quantity,
+					discount: row.discount,
 				});
 			}
 		}
 
 		return Array.from(ordersMap.values()).map((order) => {
 			const total = order.products.reduce((sum, product) => {
-				return sum + Number(product.quantity || 0) * Number(product.price || 0);
+				return (
+					sum +
+					Number(product.quantity || 0) *
+						Number(product.price || 0) *
+						(1 - Number(product.discount || 0) / 100)
+				);
 			}, 0);
 
 			return { ...order, total };
@@ -492,7 +502,7 @@ export class OrdersService {
 	}
 
 	async confirmDelivery(dto: ConfirmDeliveryDto, userId: string) {
-		const { clientId, products } = dto;
+		const { clientId } = dto;
 		const orderId = await this.db.transaction(async (tx) => {
 			const [client] = await tx
 				.select({ id: schema.clients.id })
@@ -505,23 +515,6 @@ export class OrdersService {
 				);
 
 			if (!client) throw new NotFoundException("Cliente não encontrado.");
-
-			const productIds = products.map((p) => p.productId);
-			const availableProducts = await tx
-				.select({ id: schema.products.id, price: schema.products.price })
-				.from(schema.products)
-				.where(
-					and(
-						inArray(schema.products.id, productIds),
-						isNull(schema.products.deletedAt),
-					),
-				);
-
-			if (availableProducts.length !== productIds.length) {
-				throw new NotFoundException(
-					"Um ou mais produtos não foram encontrados.",
-				);
-			}
 
 			const [existingOrder] = await tx
 				.select({ id: schema.orders.id })
@@ -555,10 +548,6 @@ export class OrdersService {
 						updatedAt: new Date(),
 					})
 					.where(eq(schema.orders.id, finalOrderId));
-
-				await tx
-					.delete(schema.order_products)
-					.where(eq(schema.order_products.orderId, finalOrderId));
 			} else {
 				const [newOrder] = await tx
 					.insert(schema.orders)
@@ -575,20 +564,6 @@ export class OrdersService {
 
 				finalOrderId = newOrder.id;
 			}
-
-			const orderProductsToInsert = products.map((product) => {
-				const dbProduct = availableProducts.find(
-					(p) => p.id === product.productId,
-				);
-				return {
-					orderId: finalOrderId,
-					productId: product.productId,
-					quantity: String(product.quantity),
-					unitPrice: String(dbProduct!.price),
-				};
-			});
-
-			await tx.insert(schema.order_products).values(orderProductsToInsert);
 
 			return finalOrderId;
 		});

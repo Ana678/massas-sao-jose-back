@@ -43,13 +43,4 @@ export class ConfirmDeliveryDto {
 	@IsBoolean({ message: "isPaid deve ser um booleano." })
 	@IsOptional()
 	isPaid?: boolean = true;
-
-	@IsArray({ message: "Os produtos devem ser um array." })
-	@ValidateNested({ each: true })
-	@Type(() => DeliveryProductDto)
-	@ArrayMinSize(1, {
-		message: "A entrega precisa ter pelo menos um produto final.",
-	})
-	@IsNotEmpty({ message: "Os produtos são obrigatórios." })
-	products: DeliveryProductDto[];
 }

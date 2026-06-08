@@ -18,6 +18,7 @@ export const order_products = pgTable("order_products", {
 
 	quantity: numeric().notNull(),
 	unitPrice: numeric("unit_price").notNull(),
+	discount: numeric().default("0"),
 
 	createdAt: timestamp("created_at").notNull().defaultNow(),
 	updatedAt: timestamp("updated_at").notNull().defaultNow(),
