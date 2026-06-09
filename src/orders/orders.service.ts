@@ -395,14 +395,16 @@ export class OrdersService {
 		}
 
 		return Array.from(ordersMap.values()).map((order) => {
-			const total = order.products.reduce((sum, product) => {
-				return (
-					sum +
-					Number(product.quantity || 0) *
-						Number(product.price || 0) *
-						(1 - Number(product.discount || 0) / 100)
-				);
-			}, 0);
+			const total = order.products
+				.reduce((sum, product) => {
+					return (
+						sum +
+						Number(product.quantity || 0) *
+							Number(product.price || 0) *
+							(1 - Number(product.discount || 0) / 100)
+					);
+				}, 0)
+				.toFixed(2);
 
 			return { ...order, total };
 		});
