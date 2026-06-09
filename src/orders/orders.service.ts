@@ -397,12 +397,14 @@ export class OrdersService {
 		return Array.from(ordersMap.values()).map((order) => {
 			const total = order.products
 				.reduce((sum, product) => {
-					return (
-						sum +
-						Number(product.quantity || 0) *
+					const priceUnit = Number(
+						(
 							Number(product.price || 0) *
 							(1 - Number(product.discount || 0) / 100)
+						).toFixed(2),
 					);
+
+					return sum + Number(product.quantity || 0) * priceUnit;
 				}, 0)
 				.toFixed(2);
 
