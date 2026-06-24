@@ -70,7 +70,9 @@ export class OrdersService {
 					status,
 					deliveryFee: String(deliveryFee),
 					createdAt: targetDate
-						? new Date(`${targetDate}T12:00:00Z`)
+						? new Date(
+								`${targetDate}T${new Date().toISOString().split("T")[1]}`,
+							)
 						: undefined,
 					createdBy: userId,
 				})
@@ -176,7 +178,7 @@ export class OrdersService {
 				updateData.deliveryFee = String(updateOrderDto.deliveryFee);
 			if (updateOrderDto.targetDate !== undefined)
 				updateData.createdAt = new Date(
-					`${updateOrderDto.targetDate}T12:00:00Z`,
+					`${updateOrderDto.targetDate}T${new Date().toISOString().split("T")[1]}`,
 				);
 
 			await tx
