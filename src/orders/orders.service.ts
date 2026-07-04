@@ -4,10 +4,25 @@ import type { UpdateOrderDto } from "./dto/update-order.dto";
 import * as schema from "../database/schema";
 import { DRIZZLE_DB } from "../database/database.module";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { eq, isNull, and, inArray, desc, gte, sql } from "drizzle-orm";
+import {
+	eq,
+	isNull,
+	and,
+	inArray,
+	desc,
+	gte,
+	sql,
+	ilike,
+	ne,
+	or,
+	lte,
+	gt,
+	SQL,
+} from "drizzle-orm";
 import { DELIVERY_SCHEDULE } from "@/common/constants/delivery-schedule";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
 import { FindOrdersByCitiesDto } from "./dto/find-orders-by-cities.dto";
+import { GetOrdersFilterDto } from "./dto/get-orders-filter.dto";
 
 @Injectable()
 export class OrdersService {
@@ -107,12 +122,105 @@ export class OrdersService {
 		});
 	}
 
-	async findAll() {
+	async findAll(filters: GetOrdersFilterDto) {
+		const { page = 1, limit = 50 } = filters;
+		const offset = (page - 1) * limit;
+
+		const whereClause = this.buildWhereConditions(filters);
+
+		const requiresClientJoin =
+			!!filters.search || (!!filters.city && filters.city !== "todas");
+
+		let countQuery: any = this.db
+			.select({ count: sql<number>`count(${schema.orders.id})` })
+			.from(schema.orders);
+
+		let idsQuery: any = this.db
+			.select({ id: schema.orders.id })
+			.from(schema.orders);
+
+		if (requiresClientJoin) {
+			countQuery = countQuery
+				.leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+				.leftJoin(schema.cities, eq(schema.clients.cityId, schema.cities.id));
+
+			idsQuery = idsQuery
+				.leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+				.leftJoin(schema.cities, eq(schema.clients.cityId, schema.cities.id));
+		}
+
+		const [{ count }] = await countQuery.where(whereClause);
+
+		const paginatedOrders = await idsQuery
+			.where(whereClause)
+			.orderBy(desc(schema.orders.createdAt))
+			.limit(limit)
+			.offset(offset);
+
+		if (!paginatedOrders.length) {
+			return { data: [], total: Number(count), page, limit };
+		}
+
+		const orderIds = paginatedOrders.map((o: any) => o.id);
+
 		const ordersData = await this.getBaseOrderQuery()
-			.where(isNull(schema.orders.deletedAt))
+			.where(inArray(schema.orders.id, orderIds))
 			.orderBy(desc(schema.orders.createdAt));
 
-		return this.aggregateOrderRows(ordersData);
+		return {
+			data: this.aggregateOrderRows(ordersData),
+			total: Number(count),
+			page,
+			limit,
+		};
+	}
+
+	private buildWhereConditions(filters: GetOrdersFilterDto) {
+		const conditions: (SQL<unknown> | undefined)[] = [
+			isNull(schema.orders.deletedAt),
+		];
+
+		if (filters.startDate)
+			conditions.push(
+				gte(
+					schema.orders.createdAt,
+					new Date(`${filters.startDate}T00:00:00Z`),
+				),
+			);
+		if (filters.endDate)
+			conditions.push(
+				lte(schema.orders.createdAt, new Date(`${filters.endDate}T23:59:59Z`)),
+			);
+
+		if (filters.paymentMethod && filters.paymentMethod !== "todos") {
+			conditions.push(eq(schema.orders.paymentMethod, filters.paymentMethod));
+		}
+
+		if (filters.paymentFilter === "pago") {
+			conditions.push(eq(schema.orders.isPaid, true));
+		} else if (filters.paymentFilter === "pendente") {
+			// 2. Remova o '!' daqui. O linter vai ficar feliz!
+			conditions.push(
+				or(
+					ne(schema.orders.status, "ENTREGUE"),
+					eq(schema.orders.isPaid, false),
+				),
+			);
+		} else if (filters.paymentFilter === "agendados") {
+			const today = new Date();
+			today.setUTCHours(0, 0, 0, 0);
+			conditions.push(gt(schema.orders.createdAt, today));
+		}
+
+		if (filters.city && filters.city !== "todas") {
+			conditions.push(eq(schema.cities.name, filters.city));
+		}
+
+		if (filters.search) {
+			conditions.push(ilike(schema.clients.name, `%${filters.search}%`));
+		}
+
+		return and(...conditions);
 	}
 
 	async findByClient(clientId: string) {
@@ -508,7 +616,8 @@ export class OrdersService {
 	}
 
 	async confirmDelivery(dto: ConfirmDeliveryDto, userId: string) {
-		const { clientId } = dto;
+		const { clientId, products } = dto;
+
 		const orderId = await this.db.transaction(async (tx) => {
 			const [client] = await tx
 				.select({ id: schema.clients.id })
@@ -549,8 +658,7 @@ export class OrdersService {
 						status: "ENTREGUE",
 						paymentMethod: dto.paymentMethod,
 						isPaid: dto.isPaid,
-						deliveryFee: String(dto.deliveryFee),
-						createdAt: new Date(),
+						deliveryFee: String(dto.deliveryFee || 0),
 						updatedAt: new Date(),
 					})
 					.where(eq(schema.orders.id, finalOrderId));
@@ -563,7 +671,7 @@ export class OrdersService {
 						status: "ENTREGUE",
 						paymentMethod: dto.paymentMethod,
 						isPaid: dto.isPaid,
-						deliveryFee: String(dto.deliveryFee),
+						deliveryFee: String(dto.deliveryFee || 0),
 						createdBy: userId,
 					})
 					.returning({ id: schema.orders.id });
@@ -571,9 +679,116 @@ export class OrdersService {
 				finalOrderId = newOrder.id;
 			}
 
+			if (products && products.length > 0) {
+				const productIds = products.map((p) => p.productId);
+
+				const selectedProducts = await tx
+					.select({ id: schema.products.id, price: schema.products.price })
+					.from(schema.products)
+					.where(
+						and(
+							isNull(schema.products.deletedAt),
+							inArray(schema.products.id, productIds),
+						),
+					);
+
+				await tx
+					.delete(schema.order_products)
+					.where(eq(schema.order_products.orderId, finalOrderId));
+
+				await tx.insert(schema.order_products).values(
+					products.map((product) => {
+						const selected = selectedProducts.find(
+							(p) => p.id === product.productId,
+						);
+						return {
+							orderId: finalOrderId,
+							productId: product.productId,
+							quantity: String(product.quantity),
+							unitPrice: String(selected!.price),
+							discount: String(product.discount || 0),
+						};
+					}),
+				);
+			}
+
 			return finalOrderId;
 		});
 
 		return this.findOne(orderId);
+	}
+
+	async getDashboardSummary(
+		monthStart: string,
+		monthEnd: string,
+		todayStr: string,
+	) {
+		const getRevenue = async (conditions: any[]) => {
+			const [result] = await this.db
+				.select({
+					// Reproduz exatamente a matemática que você tinha no frontend com precisão de cêntimos
+					total: sql<number>`COALESCE(SUM(CAST(${schema.order_products.quantity} AS numeric) * ROUND(CAST(${schema.order_products.unitPrice} AS numeric) * (1 - (CAST(${schema.order_products.discount} AS numeric) / 100.0)), 2)), 0)`,
+					count: sql<number>`COUNT(DISTINCT ${schema.orders.id})`,
+				})
+				.from(schema.orders)
+				.leftJoin(
+					schema.order_products,
+					eq(schema.orders.id, schema.order_products.orderId),
+				)
+				.where(and(...conditions, isNull(schema.orders.deletedAt)));
+
+			return { total: Number(result.total), count: Number(result.count) };
+		};
+
+		const [month, today, pending] = await Promise.all([
+			getRevenue([
+				eq(schema.orders.status, "ENTREGUE"),
+				gte(schema.orders.createdAt, new Date(`${monthStart}T00:00:00Z`)),
+				lte(schema.orders.createdAt, new Date(`${monthEnd}T23:59:59Z`)),
+			]),
+			getRevenue([
+				eq(schema.orders.status, "ENTREGUE"),
+				gte(schema.orders.createdAt, new Date(`${todayStr}T00:00:00Z`)),
+				lte(schema.orders.createdAt, new Date(`${todayStr}T23:59:59Z`)),
+			]),
+			getRevenue([
+				eq(schema.orders.status, "ENTREGUE"),
+				eq(schema.orders.isPaid, false),
+			]),
+		]);
+
+		return {
+			monthRevenue: month.total,
+			monthOrdersCount: month.count,
+			todayRevenue: today.total,
+			todayOrdersCount: today.count,
+			pendingPaymentTotal: pending.total,
+			pendingOrdersCount: pending.count,
+		};
+	}
+
+	async getExportData(startDate?: string, endDate?: string, status?: string) {
+		const conditions = [isNull(schema.orders.deletedAt)];
+
+		if (startDate) {
+			conditions.push(
+				gte(schema.orders.createdAt, new Date(`${startDate}T00:00:00Z`)),
+			);
+		}
+		if (endDate) {
+			conditions.push(
+				lte(schema.orders.createdAt, new Date(`${endDate}T23:59:59Z`)),
+			);
+		}
+		if (status) {
+			type OrderStatus = (typeof schema.orders.status.enumValues)[number];
+			conditions.push(eq(schema.orders.status, status as OrderStatus));
+		}
+
+		const exportData = await this.getBaseOrderQuery()
+			.where(and(...conditions))
+			.orderBy(desc(schema.orders.createdAt));
+
+		return this.aggregateOrderRows(exportData);
 	}
 }

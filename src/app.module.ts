@@ -5,6 +5,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./database/database.module";
 import { ClientsModule } from "./clients/clients.module";
 import { ExpensesModule } from "./expenses/expenses.module";
+import { FinanceModule } from "./finance/finance.module";
 import { envSchema } from "@/env";
 import { ProductsModule } from "./products/products.module";
 import { OrdersModule } from "./orders/orders.module";
@@ -28,6 +29,7 @@ import { AuthModule } from "./auth/auth.module";
 		ProductsModule,
 		OrdersModule,
 		AuthModule,
+		FinanceModule,
 	],
 	controllers: [],
 	providers: [

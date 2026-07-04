@@ -23,6 +23,10 @@ class DeliveryProductDto {
 	@IsPositive({ message: "A quantidade deve ser maior que zero." })
 	@IsNotEmpty({ message: "A quantidade é obrigatória." })
 	quantity: number;
+
+	@IsNumber({}, { message: "O desconto deve ser um número." })
+	@IsOptional()
+	discount?: number;
 }
 
 export class ConfirmDeliveryDto {
@@ -43,4 +47,10 @@ export class ConfirmDeliveryDto {
 	@IsBoolean({ message: "isPaid deve ser um booleano." })
 	@IsOptional()
 	isPaid?: boolean = true;
+
+	@IsArray()
+	@ValidateNested({ each: true })
+	@Type(() => DeliveryProductDto)
+	@IsOptional()
+	products?: DeliveryProductDto[];
 }

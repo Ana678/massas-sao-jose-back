@@ -9,6 +9,7 @@ import {
 	Put,
 	UseGuards,
 	Request,
+	Query,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/roles.guard";
 import { OrdersService } from "./orders.service";
@@ -17,6 +18,7 @@ import { UpdateOrderDto } from "./dto/update-order.dto";
 import { FindOrdersByCitiesDto } from "./dto/find-orders-by-cities.dto";
 import { ProductionEstimateDto } from "./dto/production-estimate.dto";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
+import { GetOrdersFilterDto } from "./dto/get-orders-filter.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("orders")
@@ -31,8 +33,8 @@ export class OrdersController {
 	}
 
 	@Get()
-	findAll() {
-		return this.ordersService.findAll();
+	findAll(@Query() filters: GetOrdersFilterDto) {
+		return this.ordersService.findAll(filters);
 	}
 
 	@Get("by-client/:clientId")
@@ -43,6 +45,24 @@ export class OrdersController {
 	@Post("by-cities")
 	findByCities(@Body() getOrdersByCitiesDto: FindOrdersByCitiesDto) {
 		return this.ordersService.findByCities(getOrdersByCitiesDto);
+	}
+
+	@Get("dashboard/summary")
+	getDashboardSummary(
+		@Query("monthStart") monthStart: string,
+		@Query("monthEnd") monthEnd: string,
+		@Query("today") today: string,
+	) {
+		return this.ordersService.getDashboardSummary(monthStart, monthEnd, today);
+	}
+
+	@Get("export")
+	exportOrders(
+		@Query("startDate") startDate?: string,
+		@Query("endDate") endDate?: string,
+		@Query("status") status?: string,
+	) {
+		return this.ordersService.getExportData(startDate, endDate, status);
 	}
 
 	@Get(":id")
