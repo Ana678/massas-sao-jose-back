@@ -15,6 +15,8 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:cov": "vitest run --coverage",
+		"test:db:up": "docker compose up -d postgres_test",
+		"test:db:down": "docker compose stop postgres_test",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
@@ -74,22 +76,5 @@
 		"typescript-eslint": "^8.20.0",
 		"unplugin-swc": "^1.5.9",
 		"vitest": "^4.1.5"
-	},
-	"jest": {
-		"moduleFileExtensions": [
-			"js",
-			"json",
-			"ts"
-		],
-		"rootDir": "src",
-		"testRegex": ".*\\.spec\\.ts$",
-		"transform": {
-			"^.+\\.(t|j)s$": "ts-jest"
-		},
-		"collectCoverageFrom": [
-			"**/*.(t|j)s"
-		],
-		"coverageDirectory": "../coverage",
-		"testEnvironment": "node"
 	}
 }

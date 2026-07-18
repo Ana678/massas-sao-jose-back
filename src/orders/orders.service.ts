@@ -316,6 +316,20 @@ export class OrdersService {
 					);
 				}
 
+				// Preço é do servidor: itens que JÁ existiam no pedido mantêm o preço
+				// congelado (snapshot); só itens novos pegam o preço atual do produto.
+				const existingItems = await tx
+					.select({
+						productId: schema.order_products.productId,
+						unitPrice: schema.order_products.unitPrice,
+					})
+					.from(schema.order_products)
+					.where(eq(schema.order_products.orderId, id));
+
+				const frozenPriceByProduct = new Map(
+					existingItems.map((item) => [item.productId, item.unitPrice]),
+				);
+
 				await tx
 					.delete(schema.order_products)
 					.where(eq(schema.order_products.orderId, id));
@@ -330,7 +344,9 @@ export class OrdersService {
 							orderId: id,
 							productId: product.productId,
 							quantity: String(product.quantity),
-							unitPrice: String(selectedProduct!.price),
+							unitPrice:
+								frozenPriceByProduct.get(product.productId) ??
+								String(selectedProduct!.price),
 							discount: String(product.discount || 0),
 						};
 					}),
@@ -352,10 +368,8 @@ export class OrdersService {
 				throw new NotFoundException("Pedido não encontrado.");
 			}
 
-			await tx
-				.delete(schema.order_products)
-				.where(eq(schema.order_products.orderId, id));
-
+			// Soft-delete: NÃO apagar os itens. O pedido some das listagens (elas filtram
+			// por isNull(deletedAt)), mas os itens congelados ficam preservados/recuperáveis.
 			await tx
 				.update(schema.orders)
 				.set({

@@ -14,7 +14,9 @@ export const order_products = pgTable("order_products", {
 
 	productId: text("product_id")
 		.notNull()
-		.references(() => products.id, { onDelete: "cascade" }),
+		// RESTRICT: impede hard-delete de um produto referenciado por pedidos, protegendo
+		// o histórico a nível de banco (a coluna é NOT NULL, então "set null" não serve).
+		.references(() => products.id, { onDelete: "restrict" }),
 
 	quantity: numeric().notNull(),
 	unitPrice: numeric("unit_price").notNull(),
