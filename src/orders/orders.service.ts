@@ -20,7 +20,11 @@ import {
 	SQL,
 } from "drizzle-orm";
 import { DELIVERY_SCHEDULE } from "@/common/constants/delivery-schedule";
-import { assertValidDiscount } from "@/common/order-total";
+import {
+	assertValidDiscount,
+	netUnitPrice,
+	type DiscountType,
+} from "@/common/order-total";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
 import { FindOrdersByCitiesDto } from "./dto/find-orders-by-cities.dto";
 import { GetOrdersFilterDto } from "./dto/get-orders-filter.dto";
@@ -468,6 +472,7 @@ export class OrdersService {
 				quantity: schema.order_products.quantity,
 				unitPrice: schema.order_products.unitPrice,
 				discount: schema.order_products.discount,
+				discountType: schema.order_products.discountType,
 			})
 			.from(schema.orders)
 			.leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
@@ -500,6 +505,7 @@ export class OrdersService {
 					price: string | null;
 					quantity: string | null;
 					discount: string | null;
+					discountType: string | null;
 				}>;
 				total: number;
 			}
@@ -532,6 +538,7 @@ export class OrdersService {
 					price: row.unitPrice,
 					quantity: row.quantity,
 					discount: row.discount,
+					discountType: row.discountType,
 				});
 			}
 		}
@@ -539,14 +546,13 @@ export class OrdersService {
 		return Array.from(ordersMap.values()).map((order) => {
 			const total = order.products
 				.reduce((sum, product) => {
-					const priceUnit = Number(
-						(
-							Number(product.price || 0) *
-							(1 - Number(product.discount || 0) / 100)
-						).toFixed(2),
+					const net = netUnitPrice(
+						Number(product.price || 0),
+						Number(product.discount || 0),
+						(product.discountType as DiscountType) || "PERCENT",
 					);
 
-					return sum + Number(product.quantity || 0) * priceUnit;
+					return sum + Number(product.quantity || 0) * net;
 				}, 0)
 				.toFixed(2);
 
