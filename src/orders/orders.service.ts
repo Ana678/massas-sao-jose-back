@@ -20,6 +20,7 @@ import {
 	SQL,
 } from "drizzle-orm";
 import { DELIVERY_SCHEDULE } from "@/common/constants/delivery-schedule";
+import { assertValidDiscount } from "@/common/order-total";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
 import { FindOrdersByCitiesDto } from "./dto/find-orders-by-cities.dto";
 import { GetOrdersFilterDto } from "./dto/get-orders-filter.dto";
@@ -107,12 +108,20 @@ export class OrdersService {
 							);
 						}
 
+						const discountType = product.discountType ?? "PERCENT";
+						assertValidDiscount(
+							Number(selectedProduct.price),
+							Number(product.discount || 0),
+							discountType,
+						);
+
 						return {
 							orderId: order.id,
 							productId: product.productId,
 							quantity: String(product.quantity),
 							unitPrice: String(selectedProduct.price),
 							discount: String(product.discount || 0),
+							discountType,
 						};
 					}),
 				)
@@ -340,14 +349,23 @@ export class OrdersService {
 							(p) => p.id === product.productId,
 						);
 
+						const resolvedUnitPrice =
+							frozenPriceByProduct.get(product.productId) ??
+							String(selectedProduct!.price);
+						const discountType = product.discountType ?? "PERCENT";
+						assertValidDiscount(
+							Number(resolvedUnitPrice),
+							Number(product.discount || 0),
+							discountType,
+						);
+
 						return {
 							orderId: id,
 							productId: product.productId,
 							quantity: String(product.quantity),
-							unitPrice:
-								frozenPriceByProduct.get(product.productId) ??
-								String(selectedProduct!.price),
+							unitPrice: resolvedUnitPrice,
 							discount: String(product.discount || 0),
+							discountType,
 						};
 					}),
 				);
@@ -715,12 +733,19 @@ export class OrdersService {
 						const selected = selectedProducts.find(
 							(p) => p.id === product.productId,
 						);
+						const discountType = product.discountType ?? "PERCENT";
+						assertValidDiscount(
+							Number(selected!.price),
+							Number(product.discount || 0),
+							discountType,
+						);
 						return {
 							orderId: finalOrderId,
 							productId: product.productId,
 							quantity: String(product.quantity),
 							unitPrice: String(selected!.price),
 							discount: String(product.discount || 0),
+							discountType,
 						};
 					}),
 				);
