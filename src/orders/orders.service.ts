@@ -23,6 +23,7 @@ import { DELIVERY_SCHEDULE } from "@/common/constants/delivery-schedule";
 import {
 	assertValidDiscount,
 	netUnitPrice,
+	orderRevenueSql,
 	type DiscountType,
 } from "@/common/order-total";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
@@ -771,8 +772,7 @@ export class OrdersService {
 		const getRevenue = async (conditions: any[]) => {
 			const [result] = await this.db
 				.select({
-					// Reproduz exatamente a matemática que você tinha no frontend com precisão de cêntimos
-					total: sql<number>`COALESCE(SUM(CAST(${schema.order_products.quantity} AS numeric) * ROUND(CAST(${schema.order_products.unitPrice} AS numeric) * (1 - (CAST(${schema.order_products.discount} AS numeric) / 100.0)), 2)), 0)`,
+					total: orderRevenueSql(),
 					count: sql<number>`COUNT(DISTINCT ${schema.orders.id})`,
 				})
 				.from(schema.orders)

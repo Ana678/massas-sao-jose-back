@@ -4,6 +4,7 @@ import * as schema from "../database/schema";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { GetFinanceMetricsDto } from "./dto/finance-metrics.dto";
 import { DRIZZLE_DB } from "@/database/database.module";
+import { orderRevenueSql } from "@/common/order-total";
 
 export interface TimelineItem {
 	name: string;
@@ -23,7 +24,7 @@ export class FinanceService {
 		const ordersMetrics = await this.db
 			.select({
 				month: sql<string>`to_char(${schema.orders.createdAt}, 'YYYY-MM')`,
-				revenue: sql<number>`COALESCE(SUM(CAST(${schema.order_products.quantity} AS numeric) * ROUND(CAST(${schema.order_products.unitPrice} AS numeric) * (1 - (CAST(${schema.order_products.discount} AS numeric) / 100.0)), 2)), 0)::float`,
+				revenue: sql<number>`${orderRevenueSql()}::float`,
 				count: sql<number>`COUNT(DISTINCT ${schema.orders.id})::int`,
 			})
 			.from(schema.orders)

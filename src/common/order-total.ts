@@ -43,5 +43,5 @@ export function orderRevenueSql(): SQL<number> {
 			CASE WHEN ${schema.order_products.discountType} = 'VALUE'
 				THEN GREATEST(CAST(${schema.order_products.unitPrice} AS numeric) - CAST(${schema.order_products.discount} AS numeric), 0)
 				ELSE CAST(${schema.order_products.unitPrice} AS numeric) * (1 - CAST(${schema.order_products.discount} AS numeric) / 100.0)
-			END, 2), 0)`;
+			END, 2)), 0)`;
 }
