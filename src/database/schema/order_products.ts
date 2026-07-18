@@ -1,7 +1,9 @@
-import { numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { numeric, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import { orders } from "./orders";
 import { products } from "./products";
+
+export const discountTypeEnum = pgEnum("discount_type", ["PERCENT", "VALUE"]);
 
 export const order_products = pgTable("order_products", {
 	id: text()
@@ -21,6 +23,7 @@ export const order_products = pgTable("order_products", {
 	quantity: numeric().notNull(),
 	unitPrice: numeric("unit_price").notNull(),
 	discount: numeric().default("0"),
+	discountType: discountTypeEnum("discount_type").notNull().default("PERCENT"),
 
 	createdAt: timestamp("created_at").notNull().defaultNow(),
 	updatedAt: timestamp("updated_at").notNull().defaultNow(),
