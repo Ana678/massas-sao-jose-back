@@ -9,6 +9,7 @@ import {
 	isNull,
 	and,
 	inArray,
+	notInArray,
 	desc,
 	gte,
 	sql,
@@ -170,7 +171,7 @@ export class OrdersService {
 
 		const paginatedOrders = await idsQuery
 			.where(whereClause)
-			.orderBy(desc(schema.orders.createdAt))
+			.orderBy(desc(schema.orders.createdAt), desc(schema.orders.id))
 			.limit(limit)
 			.offset(offset);
 
@@ -182,7 +183,7 @@ export class OrdersService {
 
 		const ordersData = await this.getBaseOrderQuery()
 			.where(inArray(schema.orders.id, orderIds))
-			.orderBy(desc(schema.orders.createdAt));
+			.orderBy(desc(schema.orders.createdAt), desc(schema.orders.id));
 
 		return {
 			data: this.aggregateOrderRows(ordersData),
@@ -580,11 +581,9 @@ export class OrdersService {
 			return { message: "Cidades não encontradas no banco.", estimate: [] };
 		const cityIds = cities.map((c) => c.id);
 
-		const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-		const [firmOrders, historicalSales, allProducts] = await Promise.all([
+		const [firmOrders, lastOrders, allProducts] = await Promise.all([
 			this.getAggregatedVolume(cityIds, ["PENDENTE", "EM_PRODUCAO"]),
-			this.getAggregatedVolume(cityIds, ["ENTREGUE"], thirtyDaysAgo),
+			this.getLastOrderVolumePerClient(cityIds),
 			this.db
 				.select({ id: schema.products.id, name: schema.products.name })
 				.from(schema.products)
@@ -596,24 +595,71 @@ export class OrdersService {
 				const firm = Number(
 					firmOrders.find((f) => f.productId === p.id)?.quantity || 0,
 				);
-				const hist = Math.ceil(
-					Number(
-						historicalSales.find((h) => h.productId === p.id)?.quantity || 0,
-					) / 4,
+				const lastOrderVolume = Number(
+					lastOrders.find((h) => h.productId === p.id)?.quantity || 0,
 				);
 
 				return {
 					productId: p.id,
 					productName: p.name,
 					firmOrders: firm,
-					historicalAverage: hist,
-					suggestedProduction: firm + hist,
+					lastOrderVolume,
+					suggestedProduction: firm + lastOrderVolume,
 				};
 			})
 			.filter((item) => item.suggestedProduction > 0)
 			.sort((a, b) => b.suggestedProduction - a.suggestedProduction);
 
 		return { targetCities, estimate };
+	}
+
+	/**
+	 * Volume estimado dos clientes recorrentes: para cada cliente das cidades-alvo,
+	 * pega o ÚLTIMO pedido ENTREGUE (1 por cliente) e soma os itens por produto.
+	 * Exclui clientes que já têm pedido firme (PENDENTE/EM_PRODUCAO) — esses já entram
+	 * em `firmOrders`, então contá-los aqui seria dupla contagem.
+	 */
+	private getLastOrderVolumePerClient(cityIds: string[]) {
+		const clientsWithFirmOrder = this.db
+			.select({ clientId: schema.orders.clientId })
+			.from(schema.orders)
+			.innerJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+			.where(
+				and(
+					inArray(schema.clients.cityId, cityIds),
+					inArray(schema.orders.status, ["PENDENTE", "EM_PRODUCAO"]),
+					isNull(schema.orders.deletedAt),
+				),
+			);
+
+		const lastOrders = this.db
+			.selectDistinctOn([schema.orders.clientId], {
+				orderId: schema.orders.id,
+			})
+			.from(schema.orders)
+			.innerJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
+			.where(
+				and(
+					inArray(schema.clients.cityId, cityIds),
+					eq(schema.orders.status, "ENTREGUE"),
+					isNull(schema.orders.deletedAt),
+					notInArray(schema.orders.clientId, clientsWithFirmOrder),
+				),
+			)
+			.orderBy(schema.orders.clientId, desc(schema.orders.createdAt))
+			.as("last_orders");
+
+		return this.db
+			.select({
+				productId: schema.order_products.productId,
+				quantity: sql<number>`sum(CAST(${schema.order_products.quantity} AS numeric))`,
+			})
+			.from(schema.order_products)
+			.innerJoin(
+				lastOrders,
+				eq(schema.order_products.orderId, lastOrders.orderId),
+			)
+			.groupBy(schema.order_products.productId);
 	}
 
 	private getCitiesForDate(dateString: string): string[] {
@@ -636,7 +682,7 @@ export class OrdersService {
 
 		return this.db
 			.select({
-				productId: schema.products.id,
+				productId: schema.order_products.productId,
 				quantity: sql<number>`sum(CAST(${schema.order_products.quantity} AS numeric))`,
 			})
 			.from(schema.orders)
@@ -646,7 +692,7 @@ export class OrdersService {
 				eq(schema.orders.id, schema.order_products.orderId),
 			)
 			.where(and(...conditions))
-			.groupBy(schema.products.id);
+			.groupBy(schema.order_products.productId);
 	}
 
 	async confirmDelivery(dto: ConfirmDeliveryDto, userId: string) {
