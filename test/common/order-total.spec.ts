@@ -17,6 +17,11 @@ describe("order-total", () => {
 		expect(netUnitPrice(12.5, 20, "VALUE")).toBe(0);
 	});
 
+	it("arredonda como decimal exato, não float: 1.15 com 50% = 0.58 (não 0.57)", () => {
+		// 1.15 × 0.5 = 0.575 → arredonda p/ cima = 0.58. Com float dá 0.57 (0.575 vira 0.5749…).
+		expect(netUnitPrice(1.15, 50, "PERCENT")).toBe(0.58);
+	});
+
 	it("assertValidDiscount rejeita PERCENT > 100", () => {
 		expect(() => assertValidDiscount(12.5, 150, "PERCENT")).toThrow();
 	});

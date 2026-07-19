@@ -22,9 +22,8 @@ import {
 import { DELIVERY_SCHEDULE } from "@/common/constants/delivery-schedule";
 import {
 	assertValidDiscount,
-	netUnitPrice,
 	orderRevenueSql,
-	type DiscountType,
+	orderTotal,
 } from "@/common/order-total";
 import {
 	businessDateWithCurrentTime,
@@ -544,17 +543,14 @@ export class OrdersService {
 		}
 
 		return Array.from(ordersMap.values()).map((order) => {
-			const total = order.products
-				.reduce((sum, product) => {
-					const net = netUnitPrice(
-						Number(product.price || 0),
-						Number(product.discount || 0),
-						(product.discountType as DiscountType) || "PERCENT",
-					);
-
-					return sum + Number(product.quantity || 0) * net;
-				}, 0)
-				.toFixed(2);
+			const total = orderTotal(
+				order.products.map((product) => ({
+					unitPrice: product.price,
+					quantity: product.quantity,
+					discount: product.discount,
+					discountType: product.discountType,
+				})),
+			);
 
 			return { ...order, total };
 		});

@@ -46,4 +46,44 @@ describe("Dashboard bate com o total do detalhe (desconto VALUE)", () => {
 
 		expect(summary.todayRevenue).toBe(Number(detail.total)); // 105.00
 	});
+
+	it("total em JS (decimal) bate com o dashboard (SQL) em valor que o float erraria", async () => {
+		const { client, user } = await seedBase(db);
+		// 1.15 × (1 − 50%) = 0.575 → 0.58 (decimal/SQL). Com float o JS daria 0.57.
+		const [product] = await db
+			.insert(schema.products)
+			.values({
+				name: "Item",
+				description: "meio centavo",
+				price: "1.15",
+				investment: "0.50",
+			})
+			.returning();
+
+		const created = await orders.create(
+			{
+				clientId: client.id,
+				status: "ENTREGUE",
+				isPaid: true,
+				paymentMethod: "dinheiro",
+				deliveryFee: 0,
+				products: [
+					{
+						productId: product.id,
+						quantity: 1,
+						discount: 50,
+						discountType: "PERCENT",
+					},
+				],
+			} as never,
+			user.id,
+		);
+
+		const detail = await orders.findOne(created.id);
+		const today = businessTodayString();
+		const summary = await orders.getDashboardSummary(today, today, today);
+
+		expect(detail.total).toBe("0.58");
+		expect(summary.todayRevenue).toBe(Number(detail.total));
+	});
 });
