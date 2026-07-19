@@ -3,6 +3,10 @@ import { type AnyColumn, sql, type SQL } from "drizzle-orm";
 /**
  * Fuso do negócio: UTC−3 (Rio Grande do Norte / Brasil, sem horário de verão desde 2019).
  * Datas `YYYY-MM-DD` da API representam dias no calendário do negócio, não em UTC.
+ *
+ * ⚠️ Premissa: os timestamps são gravados/lidos como "wall clock" em UTC (Postgres padrão,
+ * sem `TZ`/`timezone` custom na sessão). Se algum ambiente definir um timezone de sessão
+ * diferente no banco, tanto este código quanto o antigo ficam errados — NÃO configure isso.
  */
 export const BUSINESS_UTC_OFFSET = "-03:00";
 const BUSINESS_OFFSET_HOURS = 3;
