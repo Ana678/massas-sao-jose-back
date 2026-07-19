@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import * as schema from "../../src/database/schema";
 import { FinanceService } from "../../src/finance/finance.service";
 import { OrdersService } from "../../src/orders/orders.service";
+import { businessTodayString } from "../../src/common/timezone";
 import { createTestPool, resetDb, type TestDb } from "../helpers/db";
 import { seedBase } from "../helpers/seed";
 
@@ -42,7 +43,7 @@ describe("Finance bate com o total do detalhe (desconto VALUE)", () => {
 		);
 
 		const detail = await orders.findOne(created.id);
-		const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+		const month = businessTodayString().slice(0, 7); // YYYY-MM no fuso do negócio
 		const metrics = await finance.getMetrics({
 			startDate: month,
 			endDate: month,

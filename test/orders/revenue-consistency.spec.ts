@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import * as schema from "../../src/database/schema";
 import { OrdersService } from "../../src/orders/orders.service";
+import { businessTodayString } from "../../src/common/timezone";
 import { createTestPool, resetDb, type TestDb } from "../helpers/db";
 import { seedBase } from "../helpers/seed";
 
@@ -40,7 +41,7 @@ describe("Dashboard bate com o total do detalhe (desconto VALUE)", () => {
 		);
 
 		const detail = await orders.findOne(created.id);
-		const today = new Date().toISOString().slice(0, 10);
+		const today = businessTodayString();
 		const summary = await orders.getDashboardSummary(today, today, today);
 
 		expect(summary.todayRevenue).toBe(Number(detail.total)); // 105.00

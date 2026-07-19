@@ -5,6 +5,7 @@ import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { GetFinanceMetricsDto } from "./dto/finance-metrics.dto";
 import { DRIZZLE_DB } from "@/database/database.module";
 import { orderRevenueSql } from "@/common/order-total";
+import { businessMonthSql } from "@/common/timezone";
 
 export interface TimelineItem {
 	name: string;
@@ -23,7 +24,7 @@ export class FinanceService {
 
 		const ordersMetrics = await this.db
 			.select({
-				month: sql<string>`to_char(${schema.orders.createdAt}, 'YYYY-MM')`,
+				month: businessMonthSql(schema.orders.createdAt),
 				revenue: sql<number>`${orderRevenueSql()}::float`,
 				count: sql<number>`COUNT(DISTINCT ${schema.orders.id})::int`,
 			})
@@ -35,27 +36,27 @@ export class FinanceService {
 			.where(
 				and(
 					eq(schema.orders.isPaid, true),
-					gte(sql`to_char(${schema.orders.createdAt}, 'YYYY-MM')`, startDate),
-					lte(sql`to_char(${schema.orders.createdAt}, 'YYYY-MM')`, endDate),
+					gte(businessMonthSql(schema.orders.createdAt), startDate),
+					lte(businessMonthSql(schema.orders.createdAt), endDate),
 				),
 			)
-			.groupBy(sql`to_char(${schema.orders.createdAt}, 'YYYY-MM')`);
+			.groupBy(businessMonthSql(schema.orders.createdAt));
 
 		// 2. Buscar custos por mês
 		const expensesMetrics = await this.db
 			.select({
-				month: sql<string>`to_char(${schema.expenses.createdAt}, 'YYYY-MM')`,
+				month: businessMonthSql(schema.expenses.createdAt),
 				costs: sql<number>`coalesce(sum(${schema.expenses.value}), 0)::float`,
 				count: sql<number>`count(${schema.expenses.id})::int`,
 			})
 			.from(schema.expenses)
 			.where(
 				and(
-					gte(sql`to_char(${schema.expenses.createdAt}, 'YYYY-MM')`, startDate),
-					lte(sql`to_char(${schema.expenses.createdAt}, 'YYYY-MM')`, endDate),
+					gte(businessMonthSql(schema.expenses.createdAt), startDate),
+					lte(businessMonthSql(schema.expenses.createdAt), endDate),
 				),
 			)
-			.groupBy(sql`to_char(${schema.expenses.createdAt}, 'YYYY-MM')`);
+			.groupBy(businessMonthSql(schema.expenses.createdAt));
 
 		// 3. Buscar despesas agrupadas por categoria
 		const categoryMetrics = await this.db
@@ -66,8 +67,8 @@ export class FinanceService {
 			.from(schema.expenses)
 			.where(
 				and(
-					gte(sql`to_char(${schema.expenses.createdAt}, 'YYYY-MM')`, startDate),
-					lte(sql`to_char(${schema.expenses.createdAt}, 'YYYY-MM')`, endDate),
+					gte(businessMonthSql(schema.expenses.createdAt), startDate),
+					lte(businessMonthSql(schema.expenses.createdAt), endDate),
 				),
 			)
 			.groupBy(schema.expenses.category);
