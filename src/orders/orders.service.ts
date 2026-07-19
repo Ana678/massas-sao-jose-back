@@ -730,6 +730,12 @@ export class OrdersService {
 						),
 					);
 
+				if (selectedProducts.length !== productIds.length) {
+					throw new NotFoundException(
+						"Um ou mais produtos não foram encontrados.",
+					);
+				}
+
 				await tx
 					.delete(schema.order_products)
 					.where(eq(schema.order_products.orderId, finalOrderId));
