@@ -26,6 +26,12 @@ import {
 	orderRevenueSql,
 	type DiscountType,
 } from "@/common/order-total";
+import {
+	businessDateWithCurrentTime,
+	businessTodayString,
+	endOfBusinessDay,
+	startOfBusinessDay,
+} from "@/common/timezone";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
 import { FindOrdersByCitiesDto } from "./dto/find-orders-by-cities.dto";
 import { GetOrdersFilterDto } from "./dto/get-orders-filter.dto";
@@ -91,9 +97,7 @@ export class OrdersService {
 					status,
 					deliveryFee: String(deliveryFee),
 					createdAt: targetDate
-						? new Date(
-								`${targetDate}T${new Date().toISOString().split("T")[1]}`,
-							)
+						? businessDateWithCurrentTime(targetDate)
 						: undefined,
 					createdBy: userId,
 				})
@@ -196,14 +200,11 @@ export class OrdersService {
 
 		if (filters.startDate)
 			conditions.push(
-				gte(
-					schema.orders.createdAt,
-					new Date(`${filters.startDate}T00:00:00Z`),
-				),
+				gte(schema.orders.createdAt, startOfBusinessDay(filters.startDate)),
 			);
 		if (filters.endDate)
 			conditions.push(
-				lte(schema.orders.createdAt, new Date(`${filters.endDate}T23:59:59Z`)),
+				lte(schema.orders.createdAt, endOfBusinessDay(filters.endDate)),
 			);
 
 		if (filters.paymentMethod && filters.paymentMethod !== "todos") {
@@ -221,9 +222,9 @@ export class OrdersService {
 				),
 			);
 		} else if (filters.paymentFilter === "agendados") {
-			const today = new Date();
-			today.setUTCHours(0, 0, 0, 0);
-			conditions.push(gt(schema.orders.createdAt, today));
+			conditions.push(
+				gt(schema.orders.createdAt, startOfBusinessDay(businessTodayString())),
+			);
 		}
 
 		if (filters.city && filters.city !== "todas") {
@@ -299,8 +300,8 @@ export class OrdersService {
 			if (updateOrderDto.deliveryFee !== undefined)
 				updateData.deliveryFee = String(updateOrderDto.deliveryFee);
 			if (updateOrderDto.targetDate !== undefined)
-				updateData.createdAt = new Date(
-					`${updateOrderDto.targetDate}T${new Date().toISOString().split("T")[1]}`,
+				updateData.createdAt = businessDateWithCurrentTime(
+					updateOrderDto.targetDate,
 				);
 
 			await tx
@@ -424,9 +425,7 @@ export class OrdersService {
 
 		const cityIds = cities.map((city) => city.id);
 
-		const cutoffDate = targetDate
-			? new Date(`${targetDate}T23:59:59Z`)
-			: new Date();
+		const cutoffDate = targetDate ? endOfBusinessDay(targetDate) : new Date();
 
 		const latestOrders = await this.db
 			.selectDistinctOn([schema.orders.clientId], { id: schema.orders.id })
@@ -788,13 +787,13 @@ export class OrdersService {
 		const [month, today, pending] = await Promise.all([
 			getRevenue([
 				eq(schema.orders.status, "ENTREGUE"),
-				gte(schema.orders.createdAt, new Date(`${monthStart}T00:00:00Z`)),
-				lte(schema.orders.createdAt, new Date(`${monthEnd}T23:59:59Z`)),
+				gte(schema.orders.createdAt, startOfBusinessDay(monthStart)),
+				lte(schema.orders.createdAt, endOfBusinessDay(monthEnd)),
 			]),
 			getRevenue([
 				eq(schema.orders.status, "ENTREGUE"),
-				gte(schema.orders.createdAt, new Date(`${todayStr}T00:00:00Z`)),
-				lte(schema.orders.createdAt, new Date(`${todayStr}T23:59:59Z`)),
+				gte(schema.orders.createdAt, startOfBusinessDay(todayStr)),
+				lte(schema.orders.createdAt, endOfBusinessDay(todayStr)),
 			]),
 			getRevenue([
 				eq(schema.orders.status, "ENTREGUE"),
@@ -817,13 +816,11 @@ export class OrdersService {
 
 		if (startDate) {
 			conditions.push(
-				gte(schema.orders.createdAt, new Date(`${startDate}T00:00:00Z`)),
+				gte(schema.orders.createdAt, startOfBusinessDay(startDate)),
 			);
 		}
 		if (endDate) {
-			conditions.push(
-				lte(schema.orders.createdAt, new Date(`${endDate}T23:59:59Z`)),
-			);
+			conditions.push(lte(schema.orders.createdAt, endOfBusinessDay(endDate)));
 		}
 		if (status) {
 			type OrderStatus = (typeof schema.orders.status.enumValues)[number];
