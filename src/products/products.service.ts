@@ -57,9 +57,15 @@ export class ProductsService {
 	}
 
 	async remove(id: string) {
+		// Soft-delete: manter a linha do produto preserva o histórico dos pedidos.
+		// (A FK order_products.product_id é ON DELETE CASCADE — um hard-delete aqui
+		// apagaria os itens congelados de todos os pedidos antigos.)
 		const [product] = await this.db
-			.delete(schema.products)
-			.where(eq(schema.products.id, id))
+			.update(schema.products)
+			.set({ deletedAt: new Date(), updatedAt: new Date() })
+			.where(
+				and(eq(schema.products.id, id), isNull(schema.products.deletedAt)),
+			)
 			.returning();
 		return product;
 	}

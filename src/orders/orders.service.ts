@@ -20,6 +20,12 @@ import {
 	SQL,
 } from "drizzle-orm";
 import { DELIVERY_SCHEDULE } from "@/common/constants/delivery-schedule";
+import {
+	assertValidDiscount,
+	netUnitPrice,
+	orderRevenueSql,
+	type DiscountType,
+} from "@/common/order-total";
 import { ConfirmDeliveryDto } from "./dto/confirm-delivery.dto";
 import { FindOrdersByCitiesDto } from "./dto/find-orders-by-cities.dto";
 import { GetOrdersFilterDto } from "./dto/get-orders-filter.dto";
@@ -107,12 +113,20 @@ export class OrdersService {
 							);
 						}
 
+						const discountType = product.discountType ?? "PERCENT";
+						assertValidDiscount(
+							Number(selectedProduct.price),
+							Number(product.discount || 0),
+							discountType,
+						);
+
 						return {
 							orderId: order.id,
 							productId: product.productId,
 							quantity: String(product.quantity),
 							unitPrice: String(selectedProduct.price),
 							discount: String(product.discount || 0),
+							discountType,
 						};
 					}),
 				)
@@ -316,6 +330,20 @@ export class OrdersService {
 					);
 				}
 
+				// Preço é do servidor: itens que JÁ existiam no pedido mantêm o preço
+				// congelado (snapshot); só itens novos pegam o preço atual do produto.
+				const existingItems = await tx
+					.select({
+						productId: schema.order_products.productId,
+						unitPrice: schema.order_products.unitPrice,
+					})
+					.from(schema.order_products)
+					.where(eq(schema.order_products.orderId, id));
+
+				const frozenPriceByProduct = new Map(
+					existingItems.map((item) => [item.productId, item.unitPrice]),
+				);
+
 				await tx
 					.delete(schema.order_products)
 					.where(eq(schema.order_products.orderId, id));
@@ -326,12 +354,23 @@ export class OrdersService {
 							(p) => p.id === product.productId,
 						);
 
+						const resolvedUnitPrice =
+							frozenPriceByProduct.get(product.productId) ??
+							String(selectedProduct!.price);
+						const discountType = product.discountType ?? "PERCENT";
+						assertValidDiscount(
+							Number(resolvedUnitPrice),
+							Number(product.discount || 0),
+							discountType,
+						);
+
 						return {
 							orderId: id,
 							productId: product.productId,
 							quantity: String(product.quantity),
-							unitPrice: String(selectedProduct!.price),
+							unitPrice: resolvedUnitPrice,
 							discount: String(product.discount || 0),
+							discountType,
 						};
 					}),
 				);
@@ -352,10 +391,8 @@ export class OrdersService {
 				throw new NotFoundException("Pedido não encontrado.");
 			}
 
-			await tx
-				.delete(schema.order_products)
-				.where(eq(schema.order_products.orderId, id));
-
+			// Soft-delete: NÃO apagar os itens. O pedido some das listagens (elas filtram
+			// por isNull(deletedAt)), mas os itens congelados ficam preservados/recuperáveis.
 			await tx
 				.update(schema.orders)
 				.set({
@@ -436,6 +473,7 @@ export class OrdersService {
 				quantity: schema.order_products.quantity,
 				unitPrice: schema.order_products.unitPrice,
 				discount: schema.order_products.discount,
+				discountType: schema.order_products.discountType,
 			})
 			.from(schema.orders)
 			.leftJoin(schema.clients, eq(schema.orders.clientId, schema.clients.id))
@@ -468,6 +506,7 @@ export class OrdersService {
 					price: string | null;
 					quantity: string | null;
 					discount: string | null;
+					discountType: string | null;
 				}>;
 				total: number;
 			}
@@ -500,6 +539,7 @@ export class OrdersService {
 					price: row.unitPrice,
 					quantity: row.quantity,
 					discount: row.discount,
+					discountType: row.discountType,
 				});
 			}
 		}
@@ -507,14 +547,13 @@ export class OrdersService {
 		return Array.from(ordersMap.values()).map((order) => {
 			const total = order.products
 				.reduce((sum, product) => {
-					const priceUnit = Number(
-						(
-							Number(product.price || 0) *
-							(1 - Number(product.discount || 0) / 100)
-						).toFixed(2),
+					const net = netUnitPrice(
+						Number(product.price || 0),
+						Number(product.discount || 0),
+						(product.discountType as DiscountType) || "PERCENT",
 					);
 
-					return sum + Number(product.quantity || 0) * priceUnit;
+					return sum + Number(product.quantity || 0) * net;
 				}, 0)
 				.toFixed(2);
 
@@ -701,12 +740,19 @@ export class OrdersService {
 						const selected = selectedProducts.find(
 							(p) => p.id === product.productId,
 						);
+						const discountType = product.discountType ?? "PERCENT";
+						assertValidDiscount(
+							Number(selected!.price),
+							Number(product.discount || 0),
+							discountType,
+						);
 						return {
 							orderId: finalOrderId,
 							productId: product.productId,
 							quantity: String(product.quantity),
 							unitPrice: String(selected!.price),
 							discount: String(product.discount || 0),
+							discountType,
 						};
 					}),
 				);
@@ -726,8 +772,7 @@ export class OrdersService {
 		const getRevenue = async (conditions: any[]) => {
 			const [result] = await this.db
 				.select({
-					// Reproduz exatamente a matemática que você tinha no frontend com precisão de cêntimos
-					total: sql<number>`COALESCE(SUM(CAST(${schema.order_products.quantity} AS numeric) * ROUND(CAST(${schema.order_products.unitPrice} AS numeric) * (1 - (CAST(${schema.order_products.discount} AS numeric) / 100.0)), 2)), 0)`,
+					total: orderRevenueSql(),
 					count: sql<number>`COUNT(DISTINCT ${schema.orders.id})`,
 				})
 				.from(schema.orders)

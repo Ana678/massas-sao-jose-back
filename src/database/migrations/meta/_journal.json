@@ -31,13 +31,6 @@
       "breakpoints": true
     },
     {
-      "idx": 4,
-      "version": "7",
-      "when": 1779904735165,
-      "tag": "0004_add_created_by_to_orders",
-      "breakpoints": true
-    },
-    {
       "idx": 5,
       "version": "7",
       "when": 1780094504822,
@@ -49,6 +42,20 @@
       "version": "7",
       "when": 1780692479062,
       "tag": "0006_productive_greymalkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784399919798,
+      "tag": "0007_perfect_living_mummy",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784402888713,
+      "tag": "0008_legal_white_queen",
       "breakpoints": true
     }
   ]

@@ -27,8 +27,15 @@ class OrderProductDto {
 	quantity: number;
 
 	@IsNumber({}, { message: "O desconto deve ser um número." })
+	@Min(0, { message: "O desconto não pode ser negativo." })
 	@IsOptional()
 	discount?: number;
+
+	@IsEnum(["PERCENT", "VALUE"], {
+		message: "O tipo de desconto deve ser PERCENT ou VALUE.",
+	})
+	@IsOptional()
+	discountType?: "PERCENT" | "VALUE" = "PERCENT";
 }
 
 export class CreateOrderDto {
