@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsInt, Min } from "class-validator";
+import { IsOptional, IsString, IsInt, Min, Max } from "class-validator";
 import { Type } from "class-transformer";
 
 export class GetOrdersFilterDto {
@@ -12,6 +12,7 @@ export class GetOrdersFilterDto {
 	@Type(() => Number)
 	@IsInt()
 	@Min(1)
+	@Max(100)
 	limit?: number = 50;
 
 	@IsOptional()
