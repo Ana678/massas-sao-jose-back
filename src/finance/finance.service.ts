@@ -35,7 +35,8 @@ export class FinanceService {
 			)
 			.where(
 				and(
-					eq(schema.orders.isPaid, true),
+					// Receita = pedidos ENTREGUE (mesma regra do dashboard), não isPaid.
+					eq(schema.orders.status, "ENTREGUE"),
 					gte(businessMonthSql(schema.orders.createdAt), startDate),
 					lte(businessMonthSql(schema.orders.createdAt), endDate),
 				),
