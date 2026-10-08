@@ -11,7 +11,7 @@ export class ExpensesService {
 	constructor(@Inject(DRIZZLE_DB) private db: NodePgDatabase<typeof schema>) {}
 
 	async create(createExpenseDto: CreateExpenseDto) {
-		const { description, value, category } = createExpenseDto;
+		const { description, value, category, date } = createExpenseDto;
 
 		const [expense] = await this.db
 			.insert(schema.expenses)
@@ -19,6 +19,7 @@ export class ExpensesService {
 				description,
 				value: String(value),
 				category,
+				...(date && { createdAt: new Date(date) }),
 			})
 			.returning();
 		return expense;
@@ -42,14 +43,17 @@ export class ExpensesService {
 	}
 
 	async update(id: string, updateExpenseDto: UpdateExpenseDto) {
-		const { description, value, category } = updateExpenseDto;
+		const { description, value, category, date } = updateExpenseDto;
 
+		// PATCH parcial: só grava o que veio, senão `String(undefined)` vira "undefined".
 		const [expense] = await this.db
 			.update(schema.expenses)
 			.set({
-				description,
-				value: String(value),
-				category,
+				...(description !== undefined && { description }),
+				...(value !== undefined && { value: String(value) }),
+				...(category !== undefined && { category }),
+				...(date && { createdAt: new Date(date) }),
+				updatedAt: new Date(),
 			})
 			.where(and(eq(schema.expenses.id, id), isNull(schema.expenses.deletedAt)))
 			.returning();

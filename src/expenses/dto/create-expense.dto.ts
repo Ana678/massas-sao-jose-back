@@ -5,6 +5,8 @@ import {
 	IsNumber,
 	IsNotEmpty,
 	IsPositive,
+	IsOptional,
+	IsISO8601,
 } from "class-validator";
 import { TrimAndSanitize } from "@/common/sanitizers";
 
@@ -35,4 +37,11 @@ export class CreateExpenseDto {
 	})
 	@TrimAndSanitize()
 	category: string;
+
+	@IsOptional()
+	@IsISO8601(
+		{ strict: true },
+		{ message: "A data da despesa deve estar no formato ISO 8601." },
+	)
+	date?: string;
 }
