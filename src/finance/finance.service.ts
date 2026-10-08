@@ -1,7 +1,7 @@
 import { Injectable, Inject } from "@nestjs/common";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../database/schema";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { GetFinanceMetricsDto } from "./dto/finance-metrics.dto";
 import { DRIZZLE_DB } from "@/database/database.module";
 import { orderRevenueSql } from "@/common/order-total";
@@ -53,6 +53,8 @@ export class FinanceService {
 			.from(schema.expenses)
 			.where(
 				and(
+					// Exclusão de despesa é soft delete: as removidas não entram na soma.
+					isNull(schema.expenses.deletedAt),
 					gte(businessMonthSql(schema.expenses.createdAt), startDate),
 					lte(businessMonthSql(schema.expenses.createdAt), endDate),
 				),
@@ -68,6 +70,8 @@ export class FinanceService {
 			.from(schema.expenses)
 			.where(
 				and(
+					// Exclusão de despesa é soft delete: as removidas não entram na soma.
+					isNull(schema.expenses.deletedAt),
 					gte(businessMonthSql(schema.expenses.createdAt), startDate),
 					lte(businessMonthSql(schema.expenses.createdAt), endDate),
 				),
